@@ -1,0 +1,17 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /games/{gameId} {
+      allow read: if request.auth != null;
+      // Only allow writes via Cloud Functions (admin SDK) or specific client actions if needed
+      // For now, strict read-only for client, writes via Functions
+      allow write: if false; 
+      
+      match /players/{playerId} {
+        allow read: if request.auth != null;
+        allow write: if false;
+      }
+    }
+  }
+}
