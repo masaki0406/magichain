@@ -2,15 +2,65 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function gameExists(gameId) {
+      return exists(/databases/$(database)/documents/games/$(gameId));
+    }
+
+    function gameData(gameId) {
+      return get(/databases/$(database)/documents/games/$(gameId)).data;
+    }
+
+    function isMember(gameId) {
+      return isSignedIn()
+        && gameExists(gameId)
+        && request.auth.uid in gameData(gameId).memberIds;
+    }
+
+    function isHost(gameId) {
+      return isSignedIn()
+        && gameExists(gameId)
+        && request.auth.uid == gameData(gameId).hostId;
+    }
+
+    function isJoiningGame(currentData) {
+      return isSignedIn()
+        && currentData.memberIds is list
+        && request.resource.data.memberIds is list
+        && request.resource.data.memberIds.size() <= 8
+        && request.resource.data.memberIds.hasAll(currentData.memberIds)
+        && request.auth.uid in request.resource.data.memberIds;
+    }
+
+    function joinOnlyChanges() {
+      return request.resource.data.diff(resource.data).changedKeys()
+        .hasOnly(['memberIds', 'memberNames', 'updatedAt']);
+    }
+
     match /games/{gameId} {
-      allow read: if request.auth != null;
-      // Only allow writes via Cloud Functions (admin SDK) or specific client actions if needed
-      // For now, strict read-only for client, writes via Functions
-      allow write: if false; 
+      allow read: if isMember(gameId);
+
+      allow create: if isSignedIn();
+
+      allow update: if isSignedIn()
+        && (isMember(gameId) || (isJoiningGame(resource.data) && joinOnlyChanges()));
+
+      allow delete: if isHost(gameId);
       
       match /players/{playerId} {
-        allow read: if request.auth != null;
-        allow write: if false;
+        allow read: if isMember(gameId);
+        allow create: if isMember(gameId);
+        allow update: if isMember(gameId);
+      }
+
+      match /saves/{slotId} {
+        allow read: if isMember(gameId);
+        allow create: if isMember(gameId);
+        allow update: if isMember(gameId);
+        allow delete: if isMember(gameId);
       }
     }
   }
