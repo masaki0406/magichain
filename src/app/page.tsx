@@ -35,10 +35,12 @@ export default function LobbyPage() {
     if (!gameId || game?.status !== "in_progress") return;
     if (typeof window === "undefined") return;
     const override = window.localStorage.getItem("eldritch.lobbyOverride");
-    if (!override && hasClaim) {
+    if (override) return;
+    const claimed = !!uid && players.some((player) => player.ownerUid === uid);
+    if (claimed) {
       router.push("/game");
     }
-  }, [gameId, game?.status, hasClaim, router]);
+  }, [gameId, game?.status, players, uid, router]);
 
   const currentPlayer = players.find((player) => player.ownerUid && player.ownerUid === uid);
   const lifecycleStage = game?.lifecycleStage ?? "waiting";
@@ -50,7 +52,6 @@ export default function LobbyPage() {
   const canSelectCharacter = lifecycleStage === "character_select";
   const inProgress = game?.status === "in_progress";
   const canClaim = canSelectCharacter || inProgress;
-  const hasClaim = !!uid && players.some((player) => player.ownerUid === uid);
 
   const handleBeginCharacterSelection = async () => {
     if (!gameId || !uid || !isHost) return;
