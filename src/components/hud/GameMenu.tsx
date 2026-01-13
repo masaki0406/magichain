@@ -38,6 +38,9 @@ export default function GameMenu({ gameId, game, players, currentUid }: GameMenu
             <button
               type="button"
               onClick={() => {
+                if (typeof window !== "undefined") {
+                  window.localStorage.setItem("eldritch.lobbyOverride", "1");
+                }
                 window.location.href = "/";
               }}
               className="absolute right-20 top-4 rounded-md border border-[#3b2e21] px-2 py-1 text-xs text-[#c9b691] hover:text-white"

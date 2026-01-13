@@ -24,6 +24,22 @@ export default function LobbyPage() {
     ensureAnonymousAuth().then((user) => setUid(user?.uid ?? null));
   }, []);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (game?.status !== "in_progress") {
+      window.localStorage.removeItem("eldritch.lobbyOverride");
+    }
+  }, [game?.status]);
+
+  useEffect(() => {
+    if (!gameId || game?.status !== "in_progress") return;
+    if (typeof window === "undefined") return;
+    const override = window.localStorage.getItem("eldritch.lobbyOverride");
+    if (!override) {
+      router.push("/game");
+    }
+  }, [gameId, game?.status, router]);
+
   const currentPlayer = players.find((player) => player.ownerUid && player.ownerUid === uid);
   const lifecycleStage = game?.lifecycleStage ?? "waiting";
   const memberIds = Array.isArray(game?.memberIds) ? (game?.memberIds ?? []) : [];
@@ -243,7 +259,12 @@ export default function LobbyPage() {
                 {inProgress ? (
                   <button
                     type="button"
-                    onClick={() => router.push("/game")}
+                    onClick={() => {
+                      if (typeof window !== "undefined") {
+                        window.localStorage.removeItem("eldritch.lobbyOverride");
+                      }
+                      router.push("/game");
+                    }}
                     className="inline-flex items-center justify-center rounded-md border border-[#7a5b3a] bg-[#7a5b3a] px-5 py-2 text-sm font-semibold text-[#f8f1e2] shadow-[0_0_12px_rgba(122,91,58,0.35)] hover:bg-[#8b6945]"
                   >
                     ゲーム盤面へ戻る
