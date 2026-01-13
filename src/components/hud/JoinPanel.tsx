@@ -47,7 +47,7 @@ export default function JoinPanel({ layout = "overlay", onGameChange }: JoinPane
     const snap = await getDocs(collection(db, "games", gameId, "players"));
     const results: PlayerSummary[] = snap.docs.map((docSnap) => {
       const data = docSnap.data() as PlayerSummary;
-      return { id: docSnap.id, ...data };
+      return { ...data, id: docSnap.id };
     });
     setPlayers(results);
   };
