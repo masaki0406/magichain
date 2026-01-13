@@ -37,6 +37,12 @@ type PendingClaim = {
   players: { id: string; label: string }[];
 };
 
+type ConfirmAction = {
+  type: "save" | "load";
+  slotId: string;
+  label?: string;
+};
+
 function formatDate(value?: { toDate?: () => Date } | null) {
   if (!value?.toDate) return "—";
   const date = value.toDate();
@@ -53,6 +59,7 @@ export default function SavePanel({ layout = "overlay", onGameChange }: SavePane
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [pendingClaim, setPendingClaim] = useState<PendingClaim | null>(null);
+  const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -69,6 +76,46 @@ export default function SavePanel({ layout = "overlay", onGameChange }: SavePane
       return { ...data, id: docSnap.id };
     });
     setSlots(list);
+  };
+
+  const requestSave = () => {
+    setError(null);
+    setStatus(null);
+    const trimmed = gameId.trim();
+    if (!trimmed) {
+      setError("ルームIDを入力してください");
+      return;
+    }
+    const slot = slotId.trim() || `slot_${Date.now()}`;
+    const nextLabel = label.trim() || slot;
+    setConfirmAction({ type: "save", slotId: slot, label: nextLabel });
+  };
+
+  const requestLoad = (targetSlotId?: string, targetLabel?: string) => {
+    setError(null);
+    setStatus(null);
+    const trimmedGameId = gameId.trim();
+    if (!trimmedGameId) {
+      setError("ルームIDを入力してください");
+      return;
+    }
+    const slot = targetSlotId || slotId.trim();
+    if (!slot) {
+      setError("スロットIDを入力してください");
+      return;
+    }
+    setConfirmAction({ type: "load", slotId: slot, label: targetLabel });
+  };
+
+  const handleConfirm = async () => {
+    if (!confirmAction) return;
+    const next = confirmAction;
+    setConfirmAction(null);
+    if (next.type === "save") {
+      await runSave(next.slotId, next.label);
+    } else {
+      await runLoad(next.slotId);
+    }
   };
 
   const handleRefresh = async () => {
@@ -89,7 +136,7 @@ export default function SavePanel({ layout = "overlay", onGameChange }: SavePane
     }
   };
 
-  const handleSave = async () => {
+  const runSave = async (overrideSlot?: string, overrideLabel?: string) => {
     setError(null);
     setStatus(null);
     setLoading(true);
@@ -104,7 +151,7 @@ export default function SavePanel({ layout = "overlay", onGameChange }: SavePane
         throw new Error("ルームIDを入力してください");
       }
 
-      const slot = slotId.trim() || `slot_${Date.now()}`;
+      const slot = overrideSlot || slotId.trim() || `slot_${Date.now()}`;
 
       const gameRef = doc(db, "games", trimmedGameId);
       const playersRef = collection(db, "games", trimmedGameId, "players");
@@ -124,7 +171,7 @@ export default function SavePanel({ layout = "overlay", onGameChange }: SavePane
       });
 
       await setDoc(doc(db, "games", trimmedGameId, "saves", slot), {
-        label: label.trim() || slot,
+        label: overrideLabel || label.trim() || slot,
         createdAt: serverTimestamp(),
         createdBy: user.uid,
         game: gameSnap.data(),
@@ -141,7 +188,7 @@ export default function SavePanel({ layout = "overlay", onGameChange }: SavePane
     }
   };
 
-  const handleLoad = async (targetSlotId?: string) => {
+  const runLoad = async (targetSlotId?: string) => {
     setError(null);
     setStatus(null);
     setLoading(true);
@@ -301,14 +348,14 @@ export default function SavePanel({ layout = "overlay", onGameChange }: SavePane
         />
         <div className="mt-2 flex gap-2">
           <button
-            onClick={handleSave}
+            onClick={requestSave}
             disabled={loading}
             className="flex-1 rounded-md bg-[#7a5b3a] px-3 py-2 text-sm font-semibold text-[#f8f1e2] hover:bg-[#8b6945] disabled:opacity-50"
           >
             セーブ
           </button>
           <button
-            onClick={() => handleLoad()}
+            onClick={() => requestLoad()}
             disabled={loading}
             className="flex-1 rounded-md border border-[#7a5b3a] px-3 py-2 text-sm font-semibold text-[#f8f1e2] hover:border-[#cfa968] disabled:opacity-50"
           >
@@ -335,7 +382,7 @@ export default function SavePanel({ layout = "overlay", onGameChange }: SavePane
             {slotOptions.map((slot) => (
               <button
                 key={slot.id}
-                onClick={() => handleLoad(slot.id)}
+                onClick={() => requestLoad(slot.id, slot.label || slot.id)}
                 disabled={loading}
                 className="flex items-center justify-between rounded-md border border-[#5c4033] bg-[#231a13] px-2 py-2 text-left text-xs text-[#f1e6d2] hover:border-[#cfa968]"
               >
@@ -349,6 +396,36 @@ export default function SavePanel({ layout = "overlay", onGameChange }: SavePane
           </div>
         )}
       </div>
+
+      {confirmAction && (
+        <div className="mt-4 rounded-xl border border-[#3b2e21] bg-[#140f0c] p-3">
+          <div className="text-xs uppercase tracking-[0.2em] text-[#a8946b]">確認</div>
+          <p className="mt-2 text-xs text-[#c9b691]">
+            {confirmAction.type === "save"
+              ? "このスロットに現在の状態を保存します。"
+              : "ロードすると現在の状態が上書きされます。"}
+          </p>
+          <div className="mt-2 text-xs text-[#b9a782]">
+            スロット: {confirmAction.label || confirmAction.slotId}
+          </div>
+          <div className="mt-3 flex gap-2">
+            <button
+              onClick={handleConfirm}
+              disabled={loading}
+              className="flex-1 rounded-md bg-[#7a5b3a] px-3 py-2 text-xs font-semibold text-[#f8f1e2] hover:bg-[#8b6945] disabled:opacity-50"
+            >
+              実行する
+            </button>
+            <button
+              onClick={() => setConfirmAction(null)}
+              disabled={loading}
+              className="flex-1 rounded-md border border-[#7a5b3a] px-3 py-2 text-xs font-semibold text-[#f8f1e2] hover:border-[#cfa968] disabled:opacity-50"
+            >
+              キャンセル
+            </button>
+          </div>
+        </div>
+      )}
 
       {pendingClaim && (
         <div className="mt-4 rounded-xl border border-[#3b2e21] bg-[#140f0c] p-3">
