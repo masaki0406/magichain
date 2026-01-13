@@ -26,6 +26,11 @@ type SaveSlotSummary = {
 
 type SavePanelLayout = "overlay" | "panel";
 
+type SavePanelProps = {
+  layout?: SavePanelLayout;
+  onGameChange?: (gameId: string) => void;
+};
+
 type PendingClaim = {
   gameId: string;
   slotId: string;
@@ -38,7 +43,7 @@ function formatDate(value?: { toDate?: () => Date } | null) {
   return `${date.toLocaleDateString()} ${date.toLocaleTimeString()}`;
 }
 
-export default function SavePanel({ layout = "overlay" }: { layout?: SavePanelLayout }) {
+export default function SavePanel({ layout = "overlay", onGameChange }: SavePanelProps) {
   const router = useRouter();
   const [gameId, setGameId] = useState("");
   const [slotId, setSlotId] = useState("slot_1");
