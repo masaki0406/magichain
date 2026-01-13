@@ -15,6 +15,7 @@ export default function LobbyPage() {
   const [readyBusy, setReadyBusy] = useState(false);
   const [startBusy, setStartBusy] = useState(false);
   const [stageBusy, setStageBusy] = useState(false);
+  const [activeTab, setActiveTab] = useState<"join" | "save">("join");
   const { game, players, loading, error } = useGameState(gameId);
 
   useEffect(() => {
@@ -114,12 +115,37 @@ export default function LobbyPage() {
           </p>
         </header>
 
-        <section className="grid gap-6 md:grid-cols-2">
-          <div className="rounded-2xl border border-[#3b2e21] bg-gradient-to-br from-[#19130f] via-[#15100c] to-[#0f0b09] p-4 shadow-[0_0_40px_rgba(0,0,0,0.45)]">
-            <JoinPanel layout="panel" onGameChange={setGameId} canSelectCharacter={canSelectCharacter} />
+        <section className="rounded-2xl border border-[#3b2e21] bg-gradient-to-br from-[#19130f] via-[#15100c] to-[#0f0b09] p-4 shadow-[0_0_40px_rgba(0,0,0,0.45)]">
+          <div className="flex flex-wrap gap-2 border-b border-[#3b2e21] pb-3">
+            <button
+              type="button"
+              onClick={() => setActiveTab("join")}
+              className={`rounded-full px-4 py-2 text-xs font-semibold tracking-[0.2em] ${
+                activeTab === "join"
+                  ? "border border-[#cfa968] bg-[#2a1f18] text-[#f5e7c9]"
+                  : "border border-[#3b2e21] bg-[#140f0c] text-[#8a7860]"
+              }`}
+            >
+              参加 / 再開
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("save")}
+              className={`rounded-full px-4 py-2 text-xs font-semibold tracking-[0.2em] ${
+                activeTab === "save"
+                  ? "border border-[#cfa968] bg-[#2a1f18] text-[#f5e7c9]"
+                  : "border border-[#3b2e21] bg-[#140f0c] text-[#8a7860]"
+              }`}
+            >
+              セーブ / ロード
+            </button>
           </div>
-          <div className="rounded-2xl border border-[#3b2e21] bg-gradient-to-br from-[#19130f] via-[#15100c] to-[#0f0b09] p-4 shadow-[0_0_40px_rgba(0,0,0,0.45)]">
-            <SavePanel layout="panel" onGameChange={setGameId} />
+          <div className="mt-4">
+            {activeTab === "join" ? (
+              <JoinPanel layout="panel" onGameChange={setGameId} canSelectCharacter={canSelectCharacter} />
+            ) : (
+              <SavePanel layout="panel" onGameChange={setGameId} />
+            )}
           </div>
         </section>
 
