@@ -66,7 +66,7 @@ export default function SavePanel({ layout = "overlay", onGameChange }: SavePane
     const snap = await getDocs(q);
     const list = snap.docs.map((docSnap) => {
       const data = docSnap.data() as SaveSlotSummary;
-      return { id: docSnap.id, ...data };
+      return { ...data, id: docSnap.id };
     });
     setSlots(list);
   };
