@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import SavePanel from "./SavePanel";
 
-type TabKey = "rules" | "save";
+ type TabKey = "rules" | "save";
 
 export default function GameMenu() {
   const [open, setOpen] = useState(false);
@@ -22,6 +22,15 @@ export default function GameMenu() {
       {open && (
         <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/70 p-4">
           <div className="relative w-full max-w-3xl rounded-2xl border border-[#3b2e21] bg-[#14100c] p-6 text-[#f1e6d2] shadow-[0_0_40px_rgba(0,0,0,0.55)]">
+            <button
+              type="button"
+              onClick={() => {
+                window.location.href = "/";
+              }}
+              className="absolute right-20 top-4 rounded-md border border-[#3b2e21] px-2 py-1 text-xs text-[#c9b691] hover:text-white"
+            >
+              Lobby
+            </button>
             <button
               type="button"
               onClick={() => setOpen(false)}

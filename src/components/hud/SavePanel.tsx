@@ -10,8 +10,10 @@ import {
   query,
   serverTimestamp,
   setDoc,
+  updateDoc,
   writeBatch,
 } from "firebase/firestore";
+import { useRouter } from "next/navigation";
 import { auth, db, ensureAnonymousAuth } from "../../lib/firebaseClient";
 
 type SaveSlotSummary = {
@@ -19,9 +21,16 @@ type SaveSlotSummary = {
   label?: string;
   createdAt?: { toDate?: () => Date } | null;
   createdBy?: string;
+  players?: Record<string, any>;
 };
 
 type SavePanelLayout = "overlay" | "panel";
+
+type PendingClaim = {
+  gameId: string;
+  slotId: string;
+  players: { id: string; label: string }[];
+};
 
 function formatDate(value?: { toDate?: () => Date } | null) {
   if (!value?.toDate) return "—";
@@ -30,6 +39,7 @@ function formatDate(value?: { toDate?: () => Date } | null) {
 }
 
 export default function SavePanel({ layout = "overlay" }: { layout?: SavePanelLayout }) {
+  const router = useRouter();
   const [gameId, setGameId] = useState("");
   const [slotId, setSlotId] = useState("slot_1");
   const [label, setLabel] = useState("");
@@ -37,6 +47,7 @@ export default function SavePanel({ layout = "overlay" }: { layout?: SavePanelLa
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [pendingClaim, setPendingClaim] = useState<PendingClaim | null>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -184,9 +195,66 @@ export default function SavePanel({ layout = "overlay" }: { layout?: SavePanelLa
       });
 
       await batch.commit();
+
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem("eldritch.gameId", trimmedGameId);
+      }
+      onGameChange?.(trimmedGameId);
+
+      let claimList = Object.entries(players).map(([playerId, data]) => {
+        const display = (data as any)?.displayName || (data as any)?.name || playerId;
+        return { id: playerId, label: display };
+      });
+
+      if (claimList.length === 0) {
+        const playersSnap = await getDocs(collection(db, "games", trimmedGameId, "players"));
+        claimList = playersSnap.docs.map((docSnap) => {
+          const data = docSnap.data() as any;
+          const display = data?.displayName || data?.name || docSnap.id;
+          return { id: docSnap.id, label: display };
+        });
+      }
+
+      if (claimList.length === 0) {
+        setError("キャラクターが見つかりません");
+      } else {
+        setPendingClaim({ gameId: trimmedGameId, slotId: slot, players: claimList });
+      }
+
       setStatus(`ロードしました: ${slot}`);
     } catch (err: any) {
       setError(err?.message ?? "ロードに失敗しました");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleClaimAfterLoad = async (playerId: string, label: string) => {
+    if (!pendingClaim) return;
+    setError(null);
+    setStatus(null);
+    setLoading(true);
+    try {
+      await ensureAnonymousAuth();
+      const user = auth.currentUser;
+      if (!user) {
+        throw new Error("ログインに失敗しました");
+      }
+      const playerRef = doc(db, "games", pendingClaim.gameId, "players", playerId);
+      await updateDoc(playerRef, {
+        ownerUid: user.uid,
+        displayName: label,
+      });
+      await updateDoc(doc(db, "games", pendingClaim.gameId), {
+        updatedAt: serverTimestamp(),
+      });
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem("eldritch.displayName", label);
+      }
+      setPendingClaim(null);
+      router.push("/game");
+    } catch (err: any) {
+      setError(err?.message ?? "キャラ引き継ぎに失敗しました");
     } finally {
       setLoading(false);
     }
@@ -276,6 +344,25 @@ export default function SavePanel({ layout = "overlay" }: { layout?: SavePanelLa
           </div>
         )}
       </div>
+
+      {pendingClaim && (
+        <div className="mt-4 rounded-xl border border-[#3b2e21] bg-[#140f0c] p-3">
+          <div className="text-xs uppercase tracking-[0.2em] text-[#a8946b]">キャラクター選択</div>
+          <p className="mt-2 text-xs text-[#c9b691]">前回のキャラクター名を選んで再開してください。</p>
+          <div className="mt-3 flex flex-col gap-2">
+            {pendingClaim.players.map((player) => (
+              <button
+                key={player.id}
+                onClick={() => handleClaimAfterLoad(player.id, player.label)}
+                disabled={loading}
+                className="rounded-md border border-[#5c4033] bg-[#231a13] px-2 py-2 text-left text-xs text-[#f1e6d2] hover:border-[#cfa968]"
+              >
+                {player.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {(status || error) && (
         <div className="mt-3 text-xs">

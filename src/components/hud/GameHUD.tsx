@@ -2,10 +2,16 @@
 
 import React from 'react';
 
-export default function GameHUD() {
-    // Mock state - in a real app, this would come from props or context
-    const doom = 15; // Example starting value
-    const omenIndex = 0; // 0: Green, 1: Blue, 2: Red, 3: Blue
+type GameHUDProps = {
+    doom?: number;
+    omen?: number;
+    phase?: string;
+    activeInvestigatorId?: string;
+};
+
+export default function GameHUD({ doom, omen, phase, activeInvestigatorId }: GameHUDProps) {
+    const doomValue = typeof doom === 'number' ? doom : 20;
+    const omenIndex = typeof omen === 'number' ? omen : 0;
 
     // Doom Track Configuration (Top of map, curved or straight)
     // Since we don't have the track on the image anymore, we need to draw the track itself OR just the markers.
@@ -35,7 +41,7 @@ export default function GameHUD() {
                     }}
                 >
                     <div className="absolute inset-0 flex items-center justify-center text-[10px] text-white font-bold">
-                        {doom}
+                        {doomValue}
                     </div>
                 </div>
             </div>

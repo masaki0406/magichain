@@ -1,16 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import {
-  arrayUnion,
-  collection,
-  doc,
-  getDoc,
-  getDocs,
-  serverTimestamp,
-  setDoc,
-  updateDoc,
-} from "firebase/firestore";
+import { collection, doc, getDoc, getDocs } from "firebase/firestore";
 import { auth, db, ensureAnonymousAuth } from "../../lib/firebaseClient";
 
 type PlayerSummary = {
@@ -22,7 +13,12 @@ type PlayerSummary = {
 
 type JoinPanelLayout = "overlay" | "panel";
 
-export default function JoinPanel({ layout = "overlay" }: { layout?: JoinPanelLayout }) {
+type JoinPanelProps = {
+  layout?: JoinPanelLayout;
+  onGameChange?: (gameId: string) => void;
+};
+
+export default function JoinPanel({ layout = "overlay", onGameChange }: JoinPanelProps) {
   const [roomId, setRoomId] = useState("game_v1_test");
   const [displayName, setDisplayName] = useState("");
   const [status, setStatus] = useState<string | null>(null);
@@ -71,13 +67,17 @@ export default function JoinPanel({ layout = "overlay" }: { layout?: JoinPanelLa
         throw new Error("ルームIDを入力してください");
       }
       const name = displayName.trim() || "Player";
-      const gameRef = doc(db, "games", trimmedGameId);
-      await updateDoc(gameRef, {
-        memberIds: arrayUnion(user.uid),
-        [`memberNames.${user.uid}`]: name,
-        updatedAt: serverTimestamp(),
+      const response = await fetch("/api/room/join", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ roomId: trimmedGameId, uid: user.uid, name }),
       });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || "参加に失敗しました");
+      }
       setJoinedGameId(trimmedGameId);
+      onGameChange?.(trimmedGameId);
       if (typeof window !== "undefined") {
         window.localStorage.setItem("eldritch.gameId", trimmedGameId);
         window.localStorage.setItem("eldritch.displayName", displayName.trim());
@@ -118,23 +118,19 @@ export default function JoinPanel({ layout = "overlay" }: { layout?: JoinPanelLa
         }
       }
 
-      const now = serverTimestamp();
-      await setDoc(gameRef, {
-        doom: 20,
-        omen: 0,
-        phase: "ACTION",
-        activeInvestigatorId: "",
-        turnState: { actionsTaken: 0 },
-        hostId: user.uid,
-        memberIds: [user.uid],
-        memberNames: { [user.uid]: displayName.trim() || "Host" },
-        status: "active",
-        schemaVersion: 1,
-        createdAt: now,
-        updatedAt: now,
+      const hostName = displayName.trim() || "Host";
+      const response = await fetch("/api/room/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ roomId: trimmedGameId, hostUid: user.uid, hostName }),
       });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || "ルーム作成に失敗しました");
+      }
 
       setJoinedGameId(trimmedGameId);
+      onGameChange?.(trimmedGameId);
       if (typeof window !== "undefined") {
         window.localStorage.setItem("eldritch.gameId", trimmedGameId);
         window.localStorage.setItem("eldritch.displayName", displayName.trim());
@@ -166,13 +162,23 @@ export default function JoinPanel({ layout = "overlay" }: { layout?: JoinPanelLa
       }
       const playerData = playerSnap.data() || {};
       const nextName = displayName.trim() || playerData.displayName || "Player";
-      await updateDoc(playerRef, {
-        ownerUid: user.uid,
-        displayName: nextName,
+      const response = await fetch("/api/room/select-character", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          roomId: joinedGameId,
+          uid: user.uid,
+          investigatorId,
+          displayName: nextName,
+        }),
       });
-      await updateDoc(doc(db, "games", joinedGameId), {
-        updatedAt: serverTimestamp(),
-      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || "キャラ引き継ぎに失敗しました");
+      }
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem("eldritch.displayName", nextName);
+      }
       setStatus(`キャラを引き継ぎました: ${investigatorId}`);
       await loadPlayers(joinedGameId);
     } catch (err: any) {
@@ -245,6 +251,11 @@ export default function JoinPanel({ layout = "overlay" }: { layout?: JoinPanelLa
             {players.map((player) => {
               const ownedByYou = !!currentUid && player.ownerUid === currentUid;
               const ownedByOther = !!player.ownerUid && !ownedByYou;
+              const statusLabel = ownedByYou
+                ? "あなた"
+                : ownedByOther
+                  ? "キャラクター使用中"
+                  : "キャラクター未選択";
               return (
                 <button
                   key={player.id}
@@ -268,7 +279,7 @@ export default function JoinPanel({ layout = "overlay" }: { layout?: JoinPanelLa
                     <div className="font-semibold">{player.name ?? player.id}</div>
                     <div className="text-[11px] text-[#b9a782]">{player.displayName || "未設定"}</div>
                   </div>
-                  <div className="text-[11px]">{ownedByYou ? "あなた" : ownedByOther ? "使用中" : "未選択"}</div>
+                  <div className="text-[11px]">{statusLabel}</div>
                 </button>
               );
             })}
