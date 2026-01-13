@@ -17,9 +17,15 @@ type JoinPanelProps = {
   layout?: JoinPanelLayout;
   onGameChange?: (gameId: string) => void;
   canSelectCharacter?: boolean;
+  reconnectMode?: boolean;
 };
 
-export default function JoinPanel({ layout = "overlay", onGameChange, canSelectCharacter = false }: JoinPanelProps) {
+export default function JoinPanel({
+  layout = "overlay",
+  onGameChange,
+  canSelectCharacter = false,
+  reconnectMode = false,
+}: JoinPanelProps) {
   const [roomId, setRoomId] = useState("game_v1_test");
   const [displayName, setDisplayName] = useState("");
   const [status, setStatus] = useState<string | null>(null);
@@ -211,7 +217,6 @@ export default function JoinPanel({ layout = "overlay", onGameChange, canSelectC
     if (autoClaimRef.current === key) return;
     const match = players.find((player) => (player.displayName || "").trim() === targetName);
     if (!match) return;
-    if (match.ownerUid && match.ownerUid !== currentUid) return;
     autoClaimRef.current = key;
     handleClaim(match.id);
   }, [canSelectCharacter, joinedGameId, displayName, players, currentUid]);
@@ -273,7 +278,11 @@ export default function JoinPanel({ layout = "overlay", onGameChange, canSelectC
           )}
         </div>
         {!canSelectCharacter ? (
-          <div className="mt-2 text-xs text-[#a48f6a]">ホストがキャラクター選択を開始するまでお待ちください。</div>
+          <div className="mt-2 text-xs text-[#a48f6a]">
+            {reconnectMode
+              ? "ゲーム進行中です。プレイヤー名で引き継ぎできます。"
+              : "ホストがキャラクター選択を開始するまでお待ちください。"}
+          </div>
         ) : players.length === 0 ? (
           <div className="mt-2 text-xs text-[#a48f6a]">まだ取得していません</div>
         ) : (

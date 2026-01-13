@@ -35,10 +35,10 @@ export default function LobbyPage() {
     if (!gameId || game?.status !== "in_progress") return;
     if (typeof window === "undefined") return;
     const override = window.localStorage.getItem("eldritch.lobbyOverride");
-    if (!override) {
+    if (!override && hasClaim) {
       router.push("/game");
     }
-  }, [gameId, game?.status, router]);
+  }, [gameId, game?.status, hasClaim, router]);
 
   const currentPlayer = players.find((player) => player.ownerUid && player.ownerUid === uid);
   const lifecycleStage = game?.lifecycleStage ?? "waiting";
@@ -49,6 +49,8 @@ export default function LobbyPage() {
   const isHost = !!uid && !!game?.hostId && game.hostId === uid;
   const canSelectCharacter = lifecycleStage === "character_select";
   const inProgress = game?.status === "in_progress";
+  const canClaim = canSelectCharacter || inProgress;
+  const hasClaim = !!uid && players.some((player) => player.ownerUid === uid);
 
   const handleBeginCharacterSelection = async () => {
     if (!gameId || !uid || !isHost) return;
@@ -153,7 +155,12 @@ export default function LobbyPage() {
           </div>
           <div className="mt-4">
             {activeTab === "join" ? (
-              <JoinPanel layout="panel" onGameChange={setGameId} canSelectCharacter={canSelectCharacter} />
+              <JoinPanel
+                layout="panel"
+                onGameChange={setGameId}
+                canSelectCharacter={canClaim}
+                reconnectMode={inProgress}
+              />
             ) : isHost ? (
               <SavePanel layout="panel" onGameChange={setGameId} />
             ) : (
