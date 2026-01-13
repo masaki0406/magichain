@@ -20,10 +20,16 @@ export async function POST(request: Request) {
 
     const gameData = gameSnap.data() || {};
     if (gameData.hostId !== uid) {
-      return NextResponse.json({ error: "Only host can start" }, { status: 403 });
+      return NextResponse.json({ error: "Only host can start selection" }, { status: 403 });
     }
 
-    await gameRef.set({ status: "in_progress", lifecycleStage: "in_progress", updatedAt: new Date() }, { merge: true });
+    await gameRef.set(
+      {
+        lifecycleStage: "character_select",
+        updatedAt: new Date(),
+      },
+      { merge: true },
+    );
 
     return NextResponse.json({ ok: true });
   } catch (error: any) {

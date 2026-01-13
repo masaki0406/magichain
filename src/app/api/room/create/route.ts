@@ -30,6 +30,7 @@ export async function POST(request: Request) {
       memberIds: [hostUid],
       memberNames: { [hostUid]: hostName },
       status: "active",
+      lifecycleStage: "waiting",
       schemaVersion: 1,
       createdAt: new Date(),
       updatedAt: new Date(),

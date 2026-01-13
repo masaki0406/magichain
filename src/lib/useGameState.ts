@@ -12,6 +12,9 @@ export type GameState = {
   turnState?: { actionsTaken?: number };
   hostId?: string;
   status?: string;
+  lifecycleStage?: string;
+  memberIds?: string[];
+  memberNames?: Record<string, string>;
   startedAt?: unknown;
 };
 

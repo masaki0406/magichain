@@ -16,9 +16,10 @@ type JoinPanelLayout = "overlay" | "panel";
 type JoinPanelProps = {
   layout?: JoinPanelLayout;
   onGameChange?: (gameId: string) => void;
+  canSelectCharacter?: boolean;
 };
 
-export default function JoinPanel({ layout = "overlay", onGameChange }: JoinPanelProps) {
+export default function JoinPanel({ layout = "overlay", onGameChange, canSelectCharacter = false }: JoinPanelProps) {
   const [roomId, setRoomId] = useState("game_v1_test");
   const [displayName, setDisplayName] = useState("");
   const [status, setStatus] = useState<string | null>(null);
@@ -244,7 +245,9 @@ export default function JoinPanel({ layout = "overlay", onGameChange }: JoinPane
             </button>
           )}
         </div>
-        {players.length === 0 ? (
+        {!canSelectCharacter ? (
+          <div className="mt-2 text-xs text-[#a48f6a]">ホストがキャラクター選択を開始するまでお待ちください。</div>
+        ) : players.length === 0 ? (
           <div className="mt-2 text-xs text-[#a48f6a]">まだ取得していません</div>
         ) : (
           <div className="mt-2 flex flex-col gap-2">

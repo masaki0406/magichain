@@ -14,6 +14,7 @@ export default function LobbyPage() {
   const [uid, setUid] = useState<string | null>(null);
   const [readyBusy, setReadyBusy] = useState(false);
   const [startBusy, setStartBusy] = useState(false);
+  const [stageBusy, setStageBusy] = useState(false);
   const { game, players, loading, error } = useGameState(gameId);
 
   useEffect(() => {
@@ -29,11 +30,36 @@ export default function LobbyPage() {
   }, [gameId, game?.status, router]);
 
   const currentPlayer = players.find((player) => player.ownerUid && player.ownerUid === uid);
-  const allReady = players.length > 0 && players.every((player) => player.ready === true);
+  const lifecycleStage = game?.lifecycleStage ?? "waiting";
+  const memberIds = Array.isArray(game?.memberIds) ? (game?.memberIds ?? []) : [];
+  const allReady = memberIds.length > 0 && memberIds.every((memberId) =>
+    players.some((player) => player.ownerUid === memberId && player.ready === true)
+  );
   const isHost = !!uid && !!game?.hostId && game.hostId === uid;
+  const canSelectCharacter = lifecycleStage === "character_select";
+
+  const handleBeginCharacterSelection = async () => {
+    if (!gameId || !uid || !isHost) return;
+    setStageBusy(true);
+    try {
+      const response = await fetch("/api/room/begin-character-selection", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ roomId: gameId, uid }),
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || "キャラクター選択の開始に失敗しました");
+      }
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setStageBusy(false);
+    }
+  };
 
   const handleToggleReady = async () => {
-    if (!gameId || !currentPlayer) return;
+    if (!gameId || !currentPlayer || !canSelectCharacter) return;
     setReadyBusy(true);
     try {
       const response = await fetch("/api/room/ready", {
@@ -57,7 +83,7 @@ export default function LobbyPage() {
   };
 
   const handleStartGame = async () => {
-    if (!gameId || !allReady || !isHost || !uid) return;
+    if (!gameId || !allReady || !isHost || !uid || !canSelectCharacter) return;
     setStartBusy(true);
     try {
       const response = await fetch("/api/room/start", {
@@ -90,19 +116,38 @@ export default function LobbyPage() {
 
         <section className="grid gap-6 md:grid-cols-2">
           <div className="rounded-2xl border border-[#3b2e21] bg-gradient-to-br from-[#19130f] via-[#15100c] to-[#0f0b09] p-4 shadow-[0_0_40px_rgba(0,0,0,0.45)]">
-            <JoinPanel layout="panel" onGameChange={setGameId} />
+            <JoinPanel layout="panel" onGameChange={setGameId} canSelectCharacter={canSelectCharacter} />
           </div>
           <div className="rounded-2xl border border-[#3b2e21] bg-gradient-to-br from-[#19130f] via-[#15100c] to-[#0f0b09] p-4 shadow-[0_0_40px_rgba(0,0,0,0.45)]">
             <SavePanel layout="panel" onGameChange={setGameId} />
           </div>
         </section>
 
-        <CharacterSelectPanel
-          gameId={gameId}
-          players={players}
-          currentUid={uid}
-          locked={game?.status === "in_progress"}
-        />
+        {canSelectCharacter ? (
+          <CharacterSelectPanel
+            gameId={gameId}
+            players={players}
+            currentUid={uid}
+            locked={game?.status === "in_progress"}
+          />
+        ) : (
+          <section className="rounded-2xl border border-[#3b2e21] bg-[#16110d] p-4 text-sm text-[#c9b691]">
+            <div className="text-xs uppercase tracking-[0.2em] text-[#a8946b]">Character Select</div>
+            <div className="mt-2">参加者が揃ったらホストがキャラクター選択を開始します。</div>
+            {isHost && gameId ? (
+              <button
+                type="button"
+                onClick={handleBeginCharacterSelection}
+                disabled={stageBusy}
+                className="mt-3 rounded-md border border-[#7a5b3a] bg-[#201813] px-3 py-2 text-xs font-semibold text-[#f1e6d2] hover:border-[#cfa968] disabled:opacity-50"
+              >
+                キャラクター選択を開始
+              </button>
+            ) : (
+              <div className="mt-3 text-xs text-[#a48f6a]">ホストが開始するまでお待ちください。</div>
+            )}
+          </section>
+        )}
 
         <section className="rounded-2xl border border-[#3b2e21] bg-[#130f0c] p-6 text-sm text-[#c9b691]">
           <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
@@ -156,7 +201,7 @@ export default function LobbyPage() {
                     <button
                       type="button"
                       onClick={handleToggleReady}
-                      disabled={readyBusy}
+                      disabled={readyBusy || !canSelectCharacter}
                       className="rounded-md border border-[#7a5b3a] bg-[#201813] px-3 py-2 text-xs font-semibold text-[#f1e6d2] hover:border-[#cfa968] disabled:opacity-50"
                     >
                       {currentPlayer.ready ? "準備完了を解除" : "準備完了"}
@@ -173,7 +218,7 @@ export default function LobbyPage() {
                 <button
                   type="button"
                   onClick={handleStartGame}
-                  disabled={!allReady || startBusy || !isHost}
+                  disabled={!allReady || startBusy || !isHost || !canSelectCharacter}
                   className={`inline-flex items-center justify-center rounded-md px-5 py-2 text-sm font-semibold shadow-[0_0_12px_rgba(122,91,58,0.35)] ${
                     allReady && isHost
                       ? "border border-[#7a5b3a] bg-[#7a5b3a] text-[#f8f1e2] hover:bg-[#8b6945]"
