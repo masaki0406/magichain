@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { collection, doc, getDoc, getDocs } from "firebase/firestore";
 import { auth, db, ensureAnonymousAuth } from "../../lib/firebaseClient";
 
@@ -27,6 +27,7 @@ export default function JoinPanel({ layout = "overlay", onGameChange, canSelectC
   const [loading, setLoading] = useState(false);
   const [players, setPlayers] = useState<PlayerSummary[]>([]);
   const [joinedGameId, setJoinedGameId] = useState<string | null>(null);
+  const autoClaimRef = useRef<string | null>(null);
 
   const currentUid = auth.currentUser?.uid ?? null;
 
@@ -44,6 +45,18 @@ export default function JoinPanel({ layout = "overlay", onGameChange, canSelectC
     };
   }, []);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const savedGameId = window.localStorage.getItem("eldritch.gameId");
+    const savedName = window.localStorage.getItem("eldritch.displayName");
+    if (savedGameId) {
+      setRoomId(savedGameId);
+    }
+    if (savedName) {
+      setDisplayName(savedName);
+    }
+  }, []);
+
   const loadPlayers = async (gameId: string) => {
     const snap = await getDocs(collection(db, "games", gameId, "players"));
     const results: PlayerSummary[] = snap.docs.map((docSnap) => {
@@ -51,6 +64,7 @@ export default function JoinPanel({ layout = "overlay", onGameChange, canSelectC
       return { ...data, id: docSnap.id };
     });
     setPlayers(results);
+    return results;
   };
 
   const handleJoin = async () => {
@@ -188,6 +202,19 @@ export default function JoinPanel({ layout = "overlay", onGameChange, canSelectC
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (!canSelectCharacter || !joinedGameId) return;
+    const targetName = displayName.trim();
+    if (!targetName) return;
+    const key = `${joinedGameId}:${targetName}`;
+    if (autoClaimRef.current === key) return;
+    const match = players.find((player) => (player.displayName || "").trim() === targetName);
+    if (!match) return;
+    if (match.ownerUid && match.ownerUid !== currentUid) return;
+    autoClaimRef.current = key;
+    handleClaim(match.id);
+  }, [canSelectCharacter, joinedGameId, displayName, players, currentUid]);
 
   const containerClass =
     layout === "overlay"
