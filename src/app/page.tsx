@@ -24,12 +24,6 @@ export default function LobbyPage() {
     ensureAnonymousAuth().then((user) => setUid(user?.uid ?? null));
   }, []);
 
-  useEffect(() => {
-    if (gameId && game?.status === "in_progress") {
-      router.push("/game");
-    }
-  }, [gameId, game?.status, router]);
-
   const currentPlayer = players.find((player) => player.ownerUid && player.ownerUid === uid);
   const lifecycleStage = game?.lifecycleStage ?? "waiting";
   const memberIds = Array.isArray(game?.memberIds) ? (game?.memberIds ?? []) : [];
@@ -38,6 +32,7 @@ export default function LobbyPage() {
   );
   const isHost = !!uid && !!game?.hostId && game.hostId === uid;
   const canSelectCharacter = lifecycleStage === "character_select";
+  const inProgress = game?.status === "in_progress";
 
   const handleBeginCharacterSelection = async () => {
     if (!gameId || !uid || !isHost) return;
@@ -143,8 +138,12 @@ export default function LobbyPage() {
           <div className="mt-4">
             {activeTab === "join" ? (
               <JoinPanel layout="panel" onGameChange={setGameId} canSelectCharacter={canSelectCharacter} />
-            ) : (
+            ) : isHost ? (
               <SavePanel layout="panel" onGameChange={setGameId} />
+            ) : (
+              <div className="rounded-xl border border-[#3b2e21] bg-[#120e0b] p-4 text-sm text-[#c9b691]">
+                セーブ/ロードはホストのみ操作できます。
+              </div>
             )}
           </div>
         </section>
@@ -241,19 +240,29 @@ export default function LobbyPage() {
 
             {gameId ? (
               <div className="flex flex-col items-start gap-3">
-                <button
-                  type="button"
-                  onClick={handleStartGame}
-                  disabled={!allReady || startBusy || !isHost || !canSelectCharacter}
-                  className={`inline-flex items-center justify-center rounded-md px-5 py-2 text-sm font-semibold shadow-[0_0_12px_rgba(122,91,58,0.35)] ${
-                    allReady && isHost
-                      ? "border border-[#7a5b3a] bg-[#7a5b3a] text-[#f8f1e2] hover:bg-[#8b6945]"
-                      : "border border-[#4a3a2c] bg-[#1a1410] text-[#8a7860]"
-                  }`}
-                >
-                  ゲーム開始
-                </button>
-                {!isHost && (
+                {inProgress ? (
+                  <button
+                    type="button"
+                    onClick={() => router.push("/game")}
+                    className="inline-flex items-center justify-center rounded-md border border-[#7a5b3a] bg-[#7a5b3a] px-5 py-2 text-sm font-semibold text-[#f8f1e2] shadow-[0_0_12px_rgba(122,91,58,0.35)] hover:bg-[#8b6945]"
+                  >
+                    ゲーム盤面へ戻る
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleStartGame}
+                    disabled={!allReady || startBusy || !isHost || !canSelectCharacter}
+                    className={`inline-flex items-center justify-center rounded-md px-5 py-2 text-sm font-semibold shadow-[0_0_12px_rgba(122,91,58,0.35)] ${
+                      allReady && isHost
+                        ? "border border-[#7a5b3a] bg-[#7a5b3a] text-[#f8f1e2] hover:bg-[#8b6945]"
+                        : "border border-[#4a3a2c] bg-[#1a1410] text-[#8a7860]"
+                    }`}
+                  >
+                    ゲーム開始
+                  </button>
+                )}
+                {!isHost && !inProgress && (
                   <div className="text-xs text-[#a48f6a]">開始はホストのみ行えます。</div>
                 )}
               </div>

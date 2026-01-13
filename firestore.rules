@@ -57,10 +57,10 @@ service cloud.firestore {
       }
 
       match /saves/{slotId} {
-        allow read: if isMember(gameId);
-        allow create: if isMember(gameId);
-        allow update: if isMember(gameId);
-        allow delete: if isMember(gameId);
+        allow read: if isHost(gameId);
+        allow create: if isHost(gameId);
+        allow update: if isHost(gameId);
+        allow delete: if isHost(gameId);
       }
     }
   }

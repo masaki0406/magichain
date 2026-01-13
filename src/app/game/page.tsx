@@ -5,10 +5,12 @@ import Link from "next/link";
 import GameMap from "../../components/map/GameMap";
 import GameHUD from "../../components/hud/GameHUD";
 import GameMenu from "../../components/hud/GameMenu";
+import { ensureAnonymousAuth } from "../../lib/firebaseClient";
 import { useGameState } from "../../lib/useGameState";
 
 export default function GamePage() {
   const [gameId, setGameId] = useState<string | null>(null);
+  const [uid, setUid] = useState<string | null>(null);
   const { game, players, loading, error } = useGameState(gameId);
 
   const handleMove = (nodeId: string) => {
@@ -18,6 +20,7 @@ export default function GamePage() {
   useEffect(() => {
     const stored = window.localStorage.getItem("eldritch.gameId");
     setGameId(stored || null);
+    ensureAnonymousAuth().then((user) => setUid(user?.uid ?? null));
   }, []);
 
   return (
@@ -30,7 +33,7 @@ export default function GamePage() {
           phase={game?.phase}
           activeInvestigatorId={game?.activeInvestigatorId}
         />
-        <GameMenu />
+        <GameMenu gameId={gameId} game={game} players={players} currentUid={uid} />
 
         {(loading || error || !gameId) && (
           <div className="absolute left-4 bottom-4 z-40 max-w-sm rounded-md border border-[#3b2e21] bg-black/70 px-3 py-2 text-xs text-[#f1e6d2]">

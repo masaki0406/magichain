@@ -2,12 +2,25 @@
 
 import React, { useState } from "react";
 import SavePanel from "./SavePanel";
+import type { GameState, PlayerState } from "../../lib/useGameState";
 
- type TabKey = "rules" | "save";
+type TabKey = "rules" | "save" | "room";
 
-export default function GameMenu() {
+type GameMenuProps = {
+  gameId: string | null;
+  game: GameState | null;
+  players: PlayerState[];
+  currentUid: string | null;
+};
+
+export default function GameMenu({ gameId, game, players, currentUid }: GameMenuProps) {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<TabKey>("rules");
+
+  const isHost = !!currentUid && !!game?.hostId && game.hostId === currentUid;
+  const lifecycleStage = game?.lifecycleStage ?? "waiting";
+  const memberIds = Array.isArray(game?.memberIds) ? (game?.memberIds ?? []) : [];
+  const memberNames = game?.memberNames ?? {};
 
   return (
     <>
@@ -62,6 +75,17 @@ export default function GameMenu() {
               >
                 Save
               </button>
+              <button
+                type="button"
+                onClick={() => setTab("room")}
+                className={`rounded-md px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] ${
+                  tab === "room"
+                    ? "bg-[#7a5b3a] text-[#f8f1e2]"
+                    : "text-[#c9b691] hover:text-white"
+                }`}
+              >
+                Room
+              </button>
             </div>
 
             {tab === "rules" ? (
@@ -89,9 +113,63 @@ export default function GameMenu() {
                   </p>
                 </div>
               </div>
-            ) : (
+            ) : tab === "save" ? (
               <div className="mt-4">
-                <SavePanel layout="panel" />
+                {isHost ? (
+                  <SavePanel layout="panel" />
+                ) : (
+                  <div className="rounded-xl border border-[#3b2e21] bg-[#120e0b] p-4 text-sm text-[#c9b691]">
+                    セーブ/ロードはホストのみ操作できます。
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="mt-4 grid gap-4 text-sm text-[#c9b691] md:grid-cols-2">
+                <div className="rounded-xl border border-[#3b2e21] bg-[#120e0b] p-4">
+                  <div className="text-xs uppercase tracking-[0.2em] text-[#a8946b]">Room</div>
+                  <div className="mt-2 text-base text-[#f1e6d2]">{gameId ?? "未選択"}</div>
+                  <div className="mt-3 text-xs uppercase tracking-[0.2em] text-[#a8946b]">Status</div>
+                  <div className="mt-2 text-sm text-[#c9b691]">
+                    {game?.status ?? "unknown"} / {lifecycleStage}
+                  </div>
+                </div>
+                <div className="rounded-xl border border-[#3b2e21] bg-[#120e0b] p-4">
+                  <div className="text-xs uppercase tracking-[0.2em] text-[#a8946b]">Host</div>
+                  <div className="mt-2 text-sm text-[#c9b691]">
+                    {game?.hostId ? (memberNames[game.hostId] ?? game.hostId) : "未設定"}
+                  </div>
+                </div>
+                <div className="rounded-xl border border-[#3b2e21] bg-[#120e0b] p-4 md:col-span-2">
+                  <div className="text-xs uppercase tracking-[0.2em] text-[#a8946b]">Players</div>
+                  {players.length === 0 ? (
+                    <div className="mt-2 text-sm text-[#a48f6a]">参加者がまだいません</div>
+                  ) : (
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {memberIds.map((memberId) => {
+                        const player = players.find((item) => item.ownerUid === memberId);
+                        const label =
+                          memberNames[memberId] ??
+                          player?.displayName ??
+                          player?.name ??
+                          memberId;
+                        const statusLabel = player
+                          ? player.ready
+                            ? "READY"
+                            : "WAIT"
+                          : "NO CHAR";
+                        return (
+                          <div
+                            key={memberId}
+                            className="flex items-center gap-2 rounded-full border border-[#4a3a2c] bg-[#1a1410] px-2 py-1 text-[11px] text-[#f1e6d2]"
+                          >
+                            <span>{label}</span>
+                            <span className="text-[#b9a782]">{statusLabel}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>
