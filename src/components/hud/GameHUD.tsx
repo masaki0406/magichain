@@ -36,7 +36,7 @@ export default function GameHUD({ doom, omen, phase, activeInvestigatorId }: Gam
                 <div
                     className="absolute top-1/2 w-6 h-6 bg-red-600 rounded-full border-2 border-white shadow-[0_0_10px_red] transition-all duration-500 z-20"
                     style={{
-                        left: `${(doom / 20) * 96 + 2}%`, // Approximate positioning along the track
+                        left: `${(doomValue / 20) * 96 + 2}%`, // Approximate positioning along the track
                         transform: 'translate(-50%, -50%)'
                     }}
                 >
