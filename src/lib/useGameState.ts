@@ -9,7 +9,7 @@ export type GameState = {
   omen?: number;
   phase?: string;
   activeInvestigatorId?: string;
-  turnState?: { actionsTaken?: number };
+  turnState?: { actionsTaken?: number; actionHistory?: string[] };
   hostId?: string;
   status?: string;
   lifecycleStage?: string;

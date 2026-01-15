@@ -25,7 +25,7 @@ export async function POST(request: Request) {
       omen: 0,
       phase: "ACTION",
       activeInvestigatorId: "",
-      turnState: { actionsTaken: 0 },
+      turnState: { actionsTaken: 0, actionHistory: [] },
       hostId: hostUid,
       memberIds: [hostUid],
       memberNames: { [hostUid]: hostName },

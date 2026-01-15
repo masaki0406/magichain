@@ -7,7 +7,6 @@ export async function POST(request: Request) {
     const gameId = String(body?.gameId ?? "").trim();
     const investigatorId = String(body?.investigatorId ?? "").trim();
     const uid = String(body?.uid ?? "").trim();
-    const recover = String(body?.recover ?? "health").trim();
 
     if (!gameId || !investigatorId || !uid) {
       return NextResponse.json(
@@ -44,8 +43,23 @@ export async function POST(request: Request) {
     }
 
     const actionsTaken = Number(game.turnState?.actionsTaken ?? 0);
+    const actionHistory: string[] = Array.isArray(game.turnState?.actionHistory)
+      ? (game.turnState?.actionHistory as string[])
+      : [];
     if (actionsTaken >= 2) {
       return NextResponse.json({ error: "No actions remaining" }, { status: 409 });
+    }
+    if (actionHistory.includes("rest")) {
+      return NextResponse.json({ error: "Action already used this round" }, { status: 409 });
+    }
+
+    const monstersSnap = await gameRef
+      .collection("monsters")
+      .where("locationId", "==", player.locationId ?? "")
+      .limit(1)
+      .get();
+    if (!monstersSnap.empty) {
+      return NextResponse.json({ error: "Cannot rest while a monster is present" }, { status: 409 });
     }
 
     const health = Number(player.health ?? 0);
@@ -53,18 +67,13 @@ export async function POST(request: Request) {
     const sanity = Number(player.sanity ?? 0);
     const sanityMax = Number(player.sanityMax ?? 0);
 
-    let nextHealth = health;
-    let nextSanity = sanity;
-
-    if (recover === "sanity") {
-      nextSanity = Math.min(sanity + 1, sanityMax);
-    } else {
-      nextHealth = Math.min(health + 1, healthMax);
-    }
+    const nextHealth = Math.min(health + 1, healthMax);
+    const nextSanity = Math.min(sanity + 1, sanityMax);
 
     const nextTurnState = {
       ...(game.turnState ?? {}),
       actionsTaken: actionsTaken + 1,
+      actionHistory: [...actionHistory, "rest"],
     };
 
     await db.runTransaction(async (tx) => {
