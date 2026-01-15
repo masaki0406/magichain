@@ -398,31 +398,33 @@ export default function SavePanel({ layout = "overlay", onGameChange }: SavePane
       </div>
 
       {confirmAction && (
-        <div className="mt-4 rounded-xl border border-[#3b2e21] bg-[#140f0c] p-3">
-          <div className="text-xs uppercase tracking-[0.2em] text-[#a8946b]">確認</div>
-          <p className="mt-2 text-xs text-[#c9b691]">
-            {confirmAction.type === "save"
-              ? "このスロットに現在の状態を保存します。"
-              : "ロードすると現在の状態が上書きされます。"}
-          </p>
-          <div className="mt-2 text-xs text-[#b9a782]">
-            スロット: {confirmAction.label || confirmAction.slotId}
-          </div>
-          <div className="mt-3 flex gap-2">
-            <button
-              onClick={handleConfirm}
-              disabled={loading}
-              className="flex-1 rounded-md bg-[#7a5b3a] px-3 py-2 text-xs font-semibold text-[#f8f1e2] hover:bg-[#8b6945] disabled:opacity-50"
-            >
-              実行する
-            </button>
-            <button
-              onClick={() => setConfirmAction(null)}
-              disabled={loading}
-              className="flex-1 rounded-md border border-[#7a5b3a] px-3 py-2 text-xs font-semibold text-[#f8f1e2] hover:border-[#cfa968] disabled:opacity-50"
-            >
-              キャンセル
-            </button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-[#3b2e21] bg-[#14100c] p-5 text-[#f1e6d2] shadow-[0_0_40px_rgba(0,0,0,0.6)]">
+            <div className="text-xs uppercase tracking-[0.2em] text-[#a8946b]">確認</div>
+            <p className="mt-3 text-sm text-[#c9b691]">
+              {confirmAction.type === "save"
+                ? "このスロットに現在の状態を保存します。"
+                : "ロードすると現在の状態が上書きされます。"}
+            </p>
+            <div className="mt-3 rounded-md border border-[#3b2e21] bg-[#120e0b] px-3 py-2 text-xs text-[#b9a782]">
+              スロット: {confirmAction.label || confirmAction.slotId}
+            </div>
+            <div className="mt-4 flex gap-2">
+              <button
+                onClick={handleConfirm}
+                disabled={loading}
+                className="flex-1 rounded-md bg-[#7a5b3a] px-3 py-2 text-xs font-semibold text-[#f8f1e2] hover:bg-[#8b6945] disabled:opacity-50"
+              >
+                実行する
+              </button>
+              <button
+                onClick={() => setConfirmAction(null)}
+                disabled={loading}
+                className="flex-1 rounded-md border border-[#7a5b3a] px-3 py-2 text-xs font-semibold text-[#f8f1e2] hover:border-[#cfa968] disabled:opacity-50"
+              >
+                キャンセル
+              </button>
+            </div>
           </div>
         </div>
       )}
