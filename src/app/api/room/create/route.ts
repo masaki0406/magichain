@@ -62,6 +62,11 @@ export async function POST(request: Request) {
           inventory: { assets: [], spells: [], artifacts: [], conditions: [] },
           stats: seed.stats,
           improvements: { lore: 0, influence: 0, observation: 0, strength: 0, will: 0 },
+          ability: {
+            key: seed.abilityKey,
+            summary: seed.abilitySummary,
+            detail: seed.abilityDetail,
+          },
         },
         { merge: true },
       );
