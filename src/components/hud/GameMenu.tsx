@@ -136,6 +136,61 @@ export default function GameMenu({ gameId, game, players, currentUid }: GameMenu
                     {game?.hostId ? (memberNames[game.hostId] ?? game.hostId) : "未設定"}
                   </div>
                 </div>
+                <div className="rounded-xl border border-[#3b2e21] bg-[#120e0b] p-4">
+                  <div className="text-xs uppercase tracking-[0.2em] text-[#a8946b]">Actions</div>
+                  {(() => {
+                    const currentPlayer = players.find((item) => item.ownerUid === currentUid);
+                    if (!currentPlayer) {
+                      return (
+                        <div className="mt-2 text-xs text-[#a48f6a]">キャラクターが未選択です。</div>
+                      );
+                    }
+                    if (game?.status !== "in_progress" || game?.phase !== "ACTION") {
+                      return (
+                        <div className="mt-2 text-xs text-[#a48f6a]">アクションフェーズではありません。</div>
+                      );
+                    }
+                    return (
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <button
+                          onClick={async () => {
+                            await fetch("/api/action/rest", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({
+                                gameId,
+                                investigatorId: currentPlayer.id,
+                                uid: currentUid,
+                                recover: "health",
+                              }),
+                            });
+                          }}
+                          className="rounded-md border border-[#7a5b3a] bg-[#201813] px-3 py-2 text-xs font-semibold text-[#f1e6d2] hover:border-[#cfa968]"
+                        >
+                          休息（体力+1）
+                        </button>
+                        <button
+                          onClick={async () => {
+                            await fetch("/api/action/rest", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({
+                                gameId,
+                                investigatorId: currentPlayer.id,
+                                uid: currentUid,
+                                recover: "sanity",
+                              }),
+                            });
+                          }}
+                          className="rounded-md border border-[#7a5b3a] bg-[#201813] px-3 py-2 text-xs font-semibold text-[#f1e6d2] hover:border-[#cfa968]"
+                        >
+                          休息（正気度+1）
+                        </button>
+                      </div>
+                    );
+                  })()}
+                </div>
+
                 <div className="rounded-xl border border-[#3b2e21] bg-[#120e0b] p-4 md:col-span-2">
                   <div className="text-xs uppercase tracking-[0.2em] text-[#a8946b]">Players</div>
                   {players.length === 0 ? (
