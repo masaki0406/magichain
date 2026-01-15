@@ -26,10 +26,12 @@ export default function LobbyPage() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    if (game?.status !== "in_progress") {
+    if (!gameId) return;
+    if (!game) return;
+    if (game.status !== "in_progress") {
       window.localStorage.removeItem("eldritch.lobbyOverride");
     }
-  }, [game?.status]);
+  }, [gameId, game]);
 
   useEffect(() => {
     if (!gameId || game?.status !== "in_progress") return;
