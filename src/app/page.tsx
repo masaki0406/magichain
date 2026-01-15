@@ -162,12 +162,8 @@ export default function LobbyPage() {
                 canSelectCharacter={canClaim}
                 reconnectMode={inProgress}
               />
-            ) : isHost ? (
-              <SavePanel layout="panel" onGameChange={setGameId} />
             ) : (
-              <div className="rounded-xl border border-[#3b2e21] bg-[#120e0b] p-4 text-sm text-[#c9b691]">
-                セーブ/ロードはホストのみ操作できます。
-              </div>
+              <SavePanel layout="panel" onGameChange={setGameId} />
             )}
           </div>
         </section>

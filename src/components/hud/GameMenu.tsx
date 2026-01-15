@@ -118,13 +118,7 @@ export default function GameMenu({ gameId, game, players, currentUid }: GameMenu
               </div>
             ) : tab === "save" ? (
               <div className="mt-4">
-                {isHost ? (
-                  <SavePanel layout="panel" />
-                ) : (
-                  <div className="rounded-xl border border-[#3b2e21] bg-[#120e0b] p-4 text-sm text-[#c9b691]">
-                    セーブ/ロードはホストのみ操作できます。
-                  </div>
-                )}
+                <SavePanel layout="panel" />
               </div>
             ) : (
               <div className="mt-4 grid gap-4 text-sm text-[#c9b691] md:grid-cols-2">
