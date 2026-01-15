@@ -36,8 +36,15 @@ export async function POST(request: Request) {
       updatedAt: new Date(),
     });
 
+    const investigatorsSnap = await db.collection("investigators").get();
+    const investigators = investigatorsSnap.docs.map((docSnap) => ({
+      id: docSnap.id,
+      ...(docSnap.data() as Record<string, unknown>),
+    }));
+    const roster = investigators.length > 0 ? investigators : CHARACTER_SEEDS;
+
     const batch = db.batch();
-    CHARACTER_SEEDS.forEach((seed) => {
+    roster.forEach((seed) => {
       const playerRef = gameRef.collection("players").doc(seed.id);
       batch.set(
         playerRef,
@@ -63,9 +70,9 @@ export async function POST(request: Request) {
           stats: seed.stats,
           improvements: { lore: 0, influence: 0, observation: 0, strength: 0, will: 0 },
           ability: {
-            key: seed.abilityKey,
-            summary: seed.abilitySummary,
-            detail: seed.abilityDetail,
+            key: (seed as any).ability?.key ?? (seed as any).abilityKey ?? "",
+            summary: (seed as any).ability?.summary ?? (seed as any).abilitySummary ?? "",
+            detail: (seed as any).ability?.detail ?? (seed as any).abilityDetail ?? "",
           },
         },
         { merge: true },
