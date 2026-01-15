@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { collection, doc, onSnapshot, query } from "firebase/firestore";
-import { db } from "./firebaseClient";
+import { db, ensureAnonymousAuth } from "./firebaseClient";
 
 export type GameState = {
   doom?: number;
@@ -51,45 +51,59 @@ export function useGameState(gameId: string | null): GameStateResult {
       return;
     }
 
+    let active = true;
+    let unsubGame: (() => void) | null = null;
+    let unsubPlayers: (() => void) | null = null;
+
     setLoading(true);
     setError(null);
 
-    const gameRef = doc(db, "games", gameId);
-    const playersRef = query(collection(db, "games", gameId, "players"));
+    ensureAnonymousAuth()
+      .then(() => {
+        if (!active) return;
+        const gameRef = doc(db, "games", gameId);
+        const playersRef = query(collection(db, "games", gameId, "players"));
 
-    const unsubGame = onSnapshot(
-      gameRef,
-      (snap) => {
-        if (snap.exists()) {
-          setGame(snap.data() as GameState);
-        } else {
-          setGame(null);
-        }
-        setLoading(false);
-      },
-      (err) => {
-        setError(err.message);
-        setLoading(false);
-      }
-    );
+        unsubGame = onSnapshot(
+          gameRef,
+          (snap) => {
+            if (snap.exists()) {
+              setGame(snap.data() as GameState);
+            } else {
+              setGame(null);
+            }
+            setLoading(false);
+          },
+          (err) => {
+            setError(err.message);
+            setLoading(false);
+          }
+        );
 
-    const unsubPlayers = onSnapshot(
-      playersRef,
-      (snap) => {
-        const nextPlayers = snap.docs.map((docSnap) => ({
-          id: docSnap.id,
-          ...(docSnap.data() as Omit<PlayerState, "id">),
-        }));
-        setPlayers(nextPlayers);
-      },
-      (err) => {
-        setError(err.message);
-      }
-    );
+        unsubPlayers = onSnapshot(
+          playersRef,
+          (snap) => {
+            const nextPlayers = snap.docs.map((docSnap) => ({
+              id: docSnap.id,
+              ...(docSnap.data() as Omit<PlayerState, "id">),
+            }));
+            setPlayers(nextPlayers);
+          },
+          (err) => {
+            setError(err.message);
+          }
+        );
+      })
+      .catch((err) => {
+        if (!active) return;
+        setError(err?.message ?? "認証に失敗しました");
+        setLoading(false);
+      });
 
     return () => {
-      unsubGame();
-      unsubPlayers();
+      active = false;
+      if (unsubGame) unsubGame();
+      if (unsubPlayers) unsubPlayers();
     };
   }, [gameId]);
 
