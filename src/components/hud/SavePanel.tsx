@@ -1,28 +1,9 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
-import {
-  collection,
-  doc,
-  getDoc,
-  getDocs,
-  orderBy,
-  query,
-  serverTimestamp,
-  setDoc,
-  updateDoc,
-  writeBatch,
-} from "firebase/firestore";
+import React, { useEffect, useState } from "react";
+import { collection, getDocs, orderBy, query } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 import { auth, db, ensureAnonymousAuth } from "../../lib/firebaseClient";
-
-type SaveSlotSummary = {
-  id: string;
-  label?: string;
-  createdAt?: { toDate?: () => Date } | null;
-  createdBy?: string;
-  players?: Record<string, any>;
-};
 
 type SavePanelLayout = "overlay" | "panel";
 
@@ -31,429 +12,117 @@ type SavePanelProps = {
   onGameChange?: (gameId: string) => void;
 };
 
-type PendingClaim = {
+type UserGameSummary = {
   gameId: string;
-  slotId: string;
-  players: { id: string; label: string }[];
+  name?: string;
+  status?: string;
+  role?: string;
+  updatedAt?: string;
+  lastAccessedAt?: string;
 };
-
-type ConfirmAction = {
-  type: "save" | "load";
-  slotId: string;
-  label?: string;
-};
-
-function formatDate(value?: { toDate?: () => Date } | null) {
-  if (!value?.toDate) return "—";
-  const date = value.toDate();
-  return `${date.toLocaleDateString()} ${date.toLocaleTimeString()}`;
-}
 
 export default function SavePanel({ layout = "overlay", onGameChange }: SavePanelProps) {
   const router = useRouter();
-  const [gameId, setGameId] = useState("");
-  const [slotId, setSlotId] = useState("slot_1");
-  const [label, setLabel] = useState("");
-  const [slots, setSlots] = useState<SaveSlotSummary[]>([]);
-  const [status, setStatus] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [games, setGames] = useState<UserGameSummary[]>([]);
   const [loading, setLoading] = useState(false);
-  const [pendingClaim, setPendingClaim] = useState<PendingClaim | null>(null);
-  const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    const savedGameId = window.localStorage.getItem("eldritch.gameId") || "";
-    setGameId(savedGameId);
+    let active = true;
+    ensureAnonymousAuth()
+      .then(async () => {
+        if (!active) return;
+        await refresh();
+      })
+      .catch((err) => {
+        if (!active) return;
+        setError(err?.message ?? "読み込みに失敗しました");
+      });
+    return () => {
+      active = false;
+    };
   }, []);
 
-  const loadSlots = async (targetGameId: string) => {
-    const slotsRef = collection(db, "games", targetGameId, "saves");
-    const q = query(slotsRef, orderBy("createdAt", "desc"));
-    const snap = await getDocs(q);
-    const list = snap.docs.map((docSnap) => {
-      const data = docSnap.data() as SaveSlotSummary;
-      return { ...data, id: docSnap.id };
-    });
-    setSlots(list);
-  };
-
-  const requestSave = () => {
-    setError(null);
-    setStatus(null);
-    const trimmed = gameId.trim();
-    if (!trimmed) {
-      setError("ルームIDを入力してください");
-      return;
-    }
-    const slot = slotId.trim() || `slot_${Date.now()}`;
-    const nextLabel = label.trim() || slot;
-    setConfirmAction({ type: "save", slotId: slot, label: nextLabel });
-  };
-
-  const requestLoad = (targetSlotId?: string, targetLabel?: string) => {
-    setError(null);
-    setStatus(null);
-    const trimmedGameId = gameId.trim();
-    if (!trimmedGameId) {
-      setError("ルームIDを入力してください");
-      return;
-    }
-    const slot = targetSlotId || slotId.trim();
-    if (!slot) {
-      setError("スロットIDを入力してください");
-      return;
-    }
-    setConfirmAction({ type: "load", slotId: slot, label: targetLabel });
-  };
-
-  const handleConfirm = async () => {
-    if (!confirmAction) return;
-    const next = confirmAction;
-    setConfirmAction(null);
-    if (next.type === "save") {
-      await runSave(next.slotId, next.label);
-    } else {
-      await runLoad(next.slotId);
-    }
-  };
-
-  const handleRefresh = async () => {
-    setError(null);
-    setStatus(null);
-    const trimmed = gameId.trim();
-    if (!trimmed) {
-      setError("ルームIDを入力してください");
-      return;
-    }
+  const refresh = async () => {
     setLoading(true);
-    try {
-      await loadSlots(trimmed);
-    } catch (err: any) {
-      setError(err?.message ?? "スロットの読み込みに失敗しました");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const runSave = async (overrideSlot?: string, overrideLabel?: string) => {
     setError(null);
-    setStatus(null);
-    setLoading(true);
     try {
-      await ensureAnonymousAuth();
       const user = auth.currentUser;
-      if (!user) {
-        throw new Error("ログインに失敗しました");
-      }
-      const trimmedGameId = gameId.trim();
-      if (!trimmedGameId) {
-        throw new Error("ルームIDを入力してください");
-      }
-
-      const slot = overrideSlot || slotId.trim() || `slot_${Date.now()}`;
-
-      const gameRef = doc(db, "games", trimmedGameId);
-      const playersRef = collection(db, "games", trimmedGameId, "players");
-
-      const [gameSnap, playersSnap] = await Promise.all([
-        getDoc(gameRef),
-        getDocs(playersRef),
-      ]);
-
-      if (!gameSnap.exists()) {
-        throw new Error("ルームが見つかりません");
-      }
-
-      const playersMap: Record<string, unknown> = {};
-      playersSnap.docs.forEach((docSnap) => {
-        playersMap[docSnap.id] = docSnap.data();
-      });
-
-      await setDoc(doc(db, "games", trimmedGameId, "saves", slot), {
-        label: overrideLabel || label.trim() || slot,
-        createdAt: serverTimestamp(),
-        createdBy: user.uid,
-        game: gameSnap.data(),
-        players: playersMap,
-      });
-
-      setStatus(`保存しました: ${slot}`);
-      setSlotId(slot);
-      await loadSlots(trimmedGameId);
+      if (!user) throw new Error("ログインに失敗しました");
+      const ref = collection(db, "userGames", user.uid, "items");
+      const q = query(ref, orderBy("updatedAt", "desc"));
+      const snap = await getDocs(q);
+      const list = snap.docs.map((docSnap) => ({
+        gameId: docSnap.id,
+        ...(docSnap.data() as UserGameSummary),
+      }));
+      setGames(list);
     } catch (err: any) {
-      setError(err?.message ?? "セーブに失敗しました");
+      setError(err?.message ?? "読み込みに失敗しました");
     } finally {
       setLoading(false);
     }
   };
 
-  const runLoad = async (targetSlotId?: string) => {
-    setError(null);
-    setStatus(null);
-    setLoading(true);
-    try {
-      await ensureAnonymousAuth();
-      const trimmedGameId = gameId.trim();
-      if (!trimmedGameId) {
-        throw new Error("ルームIDを入力してください");
-      }
-      const slot = targetSlotId || slotId.trim();
-      if (!slot) {
-        throw new Error("スロットIDを入力してください");
-      }
-
-      const gameRef = doc(db, "games", trimmedGameId);
-      const saveRef = doc(db, "games", trimmedGameId, "saves", slot);
-
-      const [gameSnap, saveSnap] = await Promise.all([
-        getDoc(gameRef),
-        getDoc(saveRef),
-      ]);
-
-      if (!gameSnap.exists()) {
-        throw new Error("ルームが見つかりません");
-      }
-      if (!saveSnap.exists()) {
-        throw new Error("セーブスロットが見つかりません");
-      }
-
-      const saveData = saveSnap.data() || {};
-      const currentGame = gameSnap.data() || {};
-
-      const preserved = {
-        memberIds: currentGame.memberIds ?? [],
-        memberNames: currentGame.memberNames ?? {},
-        hostId: currentGame.hostId ?? null,
-        status: currentGame.status ?? "active",
-        schemaVersion: currentGame.schemaVersion ?? 1,
-        createdAt: currentGame.createdAt ?? null,
-        joinCode: currentGame.joinCode ?? null,
-      };
-
-      const nextGame = {
-        ...(saveData.game || {}),
-        ...preserved,
-        updatedAt: serverTimestamp(),
-      };
-
-      const batch = writeBatch(db);
-      batch.set(gameRef, nextGame, { merge: true });
-
-      const players = saveData.players || {};
-      Object.entries(players).forEach(([playerId, data]) => {
-        const playerRef = doc(db, "games", trimmedGameId, "players", playerId);
-        batch.set(playerRef, data as Record<string, unknown>, { merge: true });
-      });
-
-      await batch.commit();
-
-      if (typeof window !== "undefined") {
-        window.localStorage.setItem("eldritch.gameId", trimmedGameId);
-      }
-      onGameChange?.(trimmedGameId);
-
-      let claimList = Object.entries(players).map(([playerId, data]) => {
-        const display = (data as any)?.displayName || (data as any)?.name || playerId;
-        return { id: playerId, label: display };
-      });
-
-      if (claimList.length === 0) {
-        const playersSnap = await getDocs(collection(db, "games", trimmedGameId, "players"));
-        claimList = playersSnap.docs.map((docSnap) => {
-          const data = docSnap.data() as any;
-          const display = data?.displayName || data?.name || docSnap.id;
-          return { id: docSnap.id, label: display };
-        });
-      }
-
-      if (claimList.length === 0) {
-        setError("キャラクターが見つかりません");
-      } else {
-        setPendingClaim({ gameId: trimmedGameId, slotId: slot, players: claimList });
-      }
-
-      setStatus(`ロードしました: ${slot}`);
-    } catch (err: any) {
-      setError(err?.message ?? "ロードに失敗しました");
-    } finally {
-      setLoading(false);
+  const handleOpen = (gameId: string) => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("magi.gameId", gameId);
     }
+    onGameChange?.(gameId);
+    router.push("/game");
   };
-
-  const handleClaimAfterLoad = async (playerId: string, label: string) => {
-    if (!pendingClaim) return;
-    setError(null);
-    setStatus(null);
-    setLoading(true);
-    try {
-      await ensureAnonymousAuth();
-      const user = auth.currentUser;
-      if (!user) {
-        throw new Error("ログインに失敗しました");
-      }
-      const playerRef = doc(db, "games", pendingClaim.gameId, "players", playerId);
-      await updateDoc(playerRef, {
-        ownerUid: user.uid,
-        displayName: label,
-      });
-      await updateDoc(doc(db, "games", pendingClaim.gameId), {
-        updatedAt: serverTimestamp(),
-      });
-      if (typeof window !== "undefined") {
-        window.localStorage.setItem("eldritch.displayName", label);
-      }
-      setPendingClaim(null);
-      router.push("/game");
-    } catch (err: any) {
-      setError(err?.message ?? "キャラ引き継ぎに失敗しました");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const slotOptions = useMemo(() => slots, [slots]);
 
   const containerClass =
     layout === "overlay"
-      ? "absolute bottom-6 right-6 z-30 w-[320px]"
-      : "relative w-full max-w-sm";
+      ? "absolute bottom-6 right-6 z-30 w-[340px]"
+      : "relative w-full";
 
   return (
     <div
       className={`${containerClass} rounded-xl border border-[#6b5846] bg-black/70 p-4 text-[#f1e6d2] shadow-[0_0_24px_rgba(0,0,0,0.5)] pointer-events-auto`}
     >
-      <h2 className="text-sm font-semibold tracking-wide text-[#e6d4b0]">Save / Load</h2>
-      <div className="mt-3 flex flex-col gap-2">
-        <label className="text-[11px] uppercase text-[#c9b691]">ルームID</label>
-        <input
-          className="rounded-md border border-[#5c4033] bg-[#1b1510] px-2 py-1 text-sm outline-none focus:border-[#cfa968]"
-          value={gameId}
-          onChange={(e) => setGameId(e.target.value)}
-          placeholder="game_v1_test"
-        />
-        <label className="text-[11px] uppercase text-[#c9b691]">スロットID</label>
-        <input
-          className="rounded-md border border-[#5c4033] bg-[#1b1510] px-2 py-1 text-sm outline-none focus:border-[#cfa968]"
-          value={slotId}
-          onChange={(e) => setSlotId(e.target.value)}
-          placeholder="slot_1"
-        />
-        <label className="text-[11px] uppercase text-[#c9b691]">ラベル</label>
-        <input
-          className="rounded-md border border-[#5c4033] bg-[#1b1510] px-2 py-1 text-sm outline-none focus:border-[#cfa968]"
-          value={label}
-          onChange={(e) => setLabel(e.target.value)}
-          placeholder="例: 神話後"
-        />
-        <div className="mt-2 flex gap-2">
-          <button
-            onClick={requestSave}
-            disabled={loading}
-            className="flex-1 rounded-md bg-[#7a5b3a] px-3 py-2 text-sm font-semibold text-[#f8f1e2] hover:bg-[#8b6945] disabled:opacity-50"
-          >
-            セーブ
-          </button>
-          <button
-            onClick={() => requestLoad()}
-            disabled={loading}
-            className="flex-1 rounded-md border border-[#7a5b3a] px-3 py-2 text-sm font-semibold text-[#f8f1e2] hover:border-[#cfa968] disabled:opacity-50"
-          >
-            ロード
-          </button>
-        </div>
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-semibold tracking-wide text-[#e6d4b0]">セーブ/ロード</h2>
+        <button
+          type="button"
+          onClick={refresh}
+          className="text-xs text-[#c9b691] hover:text-white"
+        >
+          更新
+        </button>
       </div>
-
-      <div className="mt-4 border-t border-[#5c4033] pt-3">
-        <div className="flex items-center justify-between">
-          <span className="text-xs text-[#c9b691]">保存スロット</span>
-          <button
-            className="text-[11px] text-[#e6d4b0] underline hover:text-white"
-            onClick={handleRefresh}
-            disabled={loading}
-          >
-            再読み込み
-          </button>
-        </div>
-        {slotOptions.length === 0 ? (
-          <div className="mt-2 text-xs text-[#a48f6a]">スロットはまだありません</div>
-        ) : (
-          <div className="mt-2 flex flex-col gap-2">
-            {slotOptions.map((slot) => (
-              <button
-                key={slot.id}
-                onClick={() => requestLoad(slot.id, slot.label || slot.id)}
-                disabled={loading}
-                className="flex items-center justify-between rounded-md border border-[#5c4033] bg-[#231a13] px-2 py-2 text-left text-xs text-[#f1e6d2] hover:border-[#cfa968]"
-              >
-                <div>
-                  <div className="font-semibold">{slot.label || slot.id}</div>
-                  <div className="text-[11px] text-[#b9a782]">{formatDate(slot.createdAt)}</div>
+      <p className="mt-2 text-xs text-[#c9b691]">
+        オートセーブ済みの参加ゲームを一覧表示します。
+      </p>
+      {loading && <div className="mt-3 text-xs text-[#c9b691]">読み込み中...</div>}
+      {error && <div className="mt-3 text-xs text-[#ff8b8b]">{error}</div>}
+      {games.length === 0 && !loading ? (
+        <div className="mt-3 text-xs text-[#a48f6a]">保存済みゲームがありません。</div>
+      ) : (
+        <div className="mt-3 space-y-2">
+          {games.map((game) => (
+            <div
+              key={game.gameId}
+              className="flex items-center justify-between rounded-lg border border-[#3b2e21] bg-[#140f0c] px-3 py-2 text-xs"
+            >
+              <div>
+                <div className="text-sm text-[#f1e6d2]">{game.name ?? game.gameId}</div>
+                <div className="text-[11px] text-[#a48f6a]">
+                  {game.status ?? "unknown"} / {game.role ?? "member"}
                 </div>
-                <div className="text-[11px]">ロード</div>
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {confirmAction && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-          <div className="w-full max-w-md rounded-2xl border border-[#3b2e21] bg-[#14100c] p-5 text-[#f1e6d2] shadow-[0_0_40px_rgba(0,0,0,0.6)]">
-            <div className="text-xs uppercase tracking-[0.2em] text-[#a8946b]">確認</div>
-            <p className="mt-3 text-sm text-[#c9b691]">
-              {confirmAction.type === "save"
-                ? "このスロットに現在の状態を保存します。"
-                : "ロードすると現在の状態が上書きされます。"}
-            </p>
-            <div className="mt-3 rounded-md border border-[#3b2e21] bg-[#120e0b] px-3 py-2 text-xs text-[#b9a782]">
-              スロット: {confirmAction.label || confirmAction.slotId}
-            </div>
-            <div className="mt-4 flex gap-2">
+              </div>
               <button
-                onClick={handleConfirm}
-                disabled={loading}
-                className="flex-1 rounded-md bg-[#7a5b3a] px-3 py-2 text-xs font-semibold text-[#f8f1e2] hover:bg-[#8b6945] disabled:opacity-50"
+                type="button"
+                onClick={() => handleOpen(game.gameId)}
+                className="rounded-md border border-[#7a5b3a] bg-[#201813] px-3 py-1 text-[11px] text-[#f1e6d2]"
               >
-                実行する
-              </button>
-              <button
-                onClick={() => setConfirmAction(null)}
-                disabled={loading}
-                className="flex-1 rounded-md border border-[#7a5b3a] px-3 py-2 text-xs font-semibold text-[#f8f1e2] hover:border-[#cfa968] disabled:opacity-50"
-              >
-                キャンセル
+                開く
               </button>
             </div>
-          </div>
+          ))}
         </div>
       )}
-
-      {pendingClaim && (
-        <div className="mt-4 rounded-xl border border-[#3b2e21] bg-[#140f0c] p-3">
-          <div className="text-xs uppercase tracking-[0.2em] text-[#a8946b]">キャラクター選択</div>
-          <p className="mt-2 text-xs text-[#c9b691]">前回のキャラクター名を選んで再開してください。</p>
-          <div className="mt-3 flex flex-col gap-2">
-            {pendingClaim.players.map((player) => (
-              <button
-                key={player.id}
-                onClick={() => handleClaimAfterLoad(player.id, player.label)}
-                disabled={loading}
-                className="rounded-md border border-[#5c4033] bg-[#231a13] px-2 py-2 text-left text-xs text-[#f1e6d2] hover:border-[#cfa968]"
-              >
-                {player.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {(status || error) && (
-        <div className="mt-3 text-xs">
-          {status && <div className="text-[#a6e3a1]">{status}</div>}
-          {error && <div className="text-[#ff8b8b]">{error}</div>}
-        </div>
-      )}
+      <div className="mt-3 text-[11px] text-[#a48f6a]">TODO: 手動セーブ管理は次フェーズ。</div>
     </div>
   );
 }

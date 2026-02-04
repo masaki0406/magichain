@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import SavePanel from "./SavePanel";
-import type { GameState, PlayerState } from "../../lib/useGameState";
+import type { GameState, PlayerState } from "../../lib/magiTypes";
 
 type TabKey = "rules" | "save" | "room";
 
@@ -17,10 +17,9 @@ export default function GameMenu({ gameId, game, players, currentUid }: GameMenu
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<TabKey>("rules");
 
-  const isHost = !!currentUid && !!game?.hostId && game.hostId === currentUid;
-  const lifecycleStage = game?.lifecycleStage ?? "waiting";
   const memberIds = Array.isArray(game?.memberIds) ? (game?.memberIds ?? []) : [];
   const memberNames = game?.memberNames ?? {};
+  const currentPlayerName = currentUid ? memberNames[currentUid] ?? currentUid : "-";
 
   return (
     <>
@@ -39,7 +38,7 @@ export default function GameMenu({ gameId, game, players, currentUid }: GameMenu
               type="button"
               onClick={() => {
                 if (typeof window !== "undefined") {
-                  window.localStorage.setItem("eldritch.lobbyOverride", "1");
+                  window.localStorage.setItem("magi.lobbyOverride", "1");
                 }
                 window.location.href = "/";
               }}
@@ -94,26 +93,19 @@ export default function GameMenu({ gameId, game, players, currentUid }: GameMenu
             {tab === "rules" ? (
               <div className="mt-4 grid gap-4 text-sm text-[#c9b691] md:grid-cols-2">
                 <div className="rounded-xl border border-[#3b2e21] bg-[#120e0b] p-4">
-                  <div className="text-xs uppercase tracking-[0.2em] text-[#a8946b]">Round Flow</div>
+                  <div className="text-xs uppercase tracking-[0.2em] text-[#a8946b]">Turn Flow</div>
                   <ul className="mt-3 space-y-2">
-                    <li>アクション → 遭遇 → 神話 の順で進行</li>
-                    <li>アクションは各探索者 最大2回</li>
-                    <li>遅延は次のアクションを失う</li>
+                    <li>プレイ → 精霊 → 移動 → マスアクション</li>
+                    <li>場札排出 → 手札補充 の順で進行</li>
+                    <li>カード順序と精霊条件が重要</li>
                   </ul>
                 </div>
                 <div className="rounded-xl border border-[#3b2e21] bg-[#120e0b] p-4">
-                  <div className="text-xs uppercase tracking-[0.2em] text-[#a8946b]">Dice</div>
+                  <div className="text-xs uppercase tracking-[0.2em] text-[#a8946b]">Resources</div>
                   <ul className="mt-3 space-y-2">
-                    <li>能力値分の d6 を振る</li>
-                    <li>成功目は 5 / 6</li>
-                    <li>祝福で成功範囲が拡張</li>
+                    <li>移動 / 攻撃 / 知力 / ドロー</li>
+                    <li>青・赤・緑・黄カードで獲得</li>
                   </ul>
-                </div>
-                <div className="rounded-xl border border-[#3b2e21] bg-[#120e0b] p-4 md:col-span-2">
-                  <div className="text-xs uppercase tracking-[0.2em] text-[#a8946b]">Notes</div>
-                  <p className="mt-3 text-sm text-[#c9b691]">
-                    詳細ルールはロビーまたは別紙の仕様書で確認してください。
-                  </p>
                 </div>
               </div>
             ) : tab === "save" ? (
@@ -126,54 +118,12 @@ export default function GameMenu({ gameId, game, players, currentUid }: GameMenu
                   <div className="text-xs uppercase tracking-[0.2em] text-[#a8946b]">Room</div>
                   <div className="mt-2 text-base text-[#f1e6d2]">{gameId ?? "未選択"}</div>
                   <div className="mt-3 text-xs uppercase tracking-[0.2em] text-[#a8946b]">Status</div>
-                  <div className="mt-2 text-sm text-[#c9b691]">
-                    {game?.status ?? "unknown"} / {lifecycleStage}
-                  </div>
+                  <div className="mt-2 text-sm text-[#c9b691]">{game?.status ?? "unknown"}</div>
                 </div>
                 <div className="rounded-xl border border-[#3b2e21] bg-[#120e0b] p-4">
-                  <div className="text-xs uppercase tracking-[0.2em] text-[#a8946b]">Host</div>
-                  <div className="mt-2 text-sm text-[#c9b691]">
-                    {game?.hostId ? (memberNames[game.hostId] ?? game.hostId) : "未設定"}
-                  </div>
+                  <div className="text-xs uppercase tracking-[0.2em] text-[#a8946b]">You</div>
+                  <div className="mt-2 text-sm text-[#c9b691]">{currentPlayerName}</div>
                 </div>
-                <div className="rounded-xl border border-[#3b2e21] bg-[#120e0b] p-4">
-                  <div className="text-xs uppercase tracking-[0.2em] text-[#a8946b]">Actions</div>
-                  {(() => {
-                    const currentPlayer = players.find((item) => item.ownerUid === currentUid);
-                    if (!currentPlayer) {
-                      return (
-                        <div className="mt-2 text-xs text-[#a48f6a]">キャラクターが未選択です。</div>
-                      );
-                    }
-                    if (game?.status !== "in_progress" || game?.phase !== "ACTION") {
-                      return (
-                        <div className="mt-2 text-xs text-[#a48f6a]">アクションフェーズではありません。</div>
-                      );
-                    }
-                    return (
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        <button
-                          disabled={!gameId || !currentUid || (game?.turnState?.actionsTaken ?? 0) >= 2 || (Array.isArray(game?.turnState?.actionHistory) && game?.turnState?.actionHistory?.includes("rest"))}
-                          onClick={async () => {
-                            await fetch("/api/action/rest", {
-                              method: "POST",
-                              headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({
-                                gameId,
-                                investigatorId: currentPlayer.id,
-                                uid: currentUid,
-                              }),
-                            });
-                          }}
-                          className="rounded-md border border-[#7a5b3a] bg-[#201813] px-3 py-2 text-xs font-semibold text-[#f1e6d2] hover:border-[#cfa968]"
-                        >
-                          休息（体力+1 / 正気度+1）
-                        </button>
-                      </div>
-                    );
-                  })()}
-                </div>
-
                 <div className="rounded-xl border border-[#3b2e21] bg-[#120e0b] p-4 md:col-span-2">
                   <div className="text-xs uppercase tracking-[0.2em] text-[#a8946b]">Players</div>
                   {players.length === 0 ? (
@@ -181,24 +131,14 @@ export default function GameMenu({ gameId, game, players, currentUid }: GameMenu
                   ) : (
                     <div className="mt-2 flex flex-wrap gap-2">
                       {memberIds.map((memberId) => {
-                        const player = players.find((item) => item.ownerUid === memberId);
-                        const label =
-                          memberNames[memberId] ??
-                          player?.displayName ??
-                          player?.name ??
-                          memberId;
-                        const statusLabel = player
-                          ? player.ready
-                            ? "READY"
-                            : "WAIT"
-                          : "NO CHAR";
+                        const player = players.find((item) => item.uid === memberId);
+                        const label = memberNames[memberId] ?? player?.name ?? memberId;
                         return (
                           <div
                             key={memberId}
                             className="flex items-center gap-2 rounded-full border border-[#4a3a2c] bg-[#1a1410] px-2 py-1 text-[11px] text-[#f1e6d2]"
                           >
                             <span>{label}</span>
-                            <span className="text-[#b9a782]">{statusLabel}</span>
                           </div>
                         );
                       })}

@@ -6,8 +6,8 @@ const inter = Inter({ subsets: ["latin"] });
 const cinzel = Cinzel({ subsets: ["latin"], variable: '--font-cinzel' });
 
 export const metadata: Metadata = {
-  title: "Eldritch Horror Map",
-  description: "Interactive Game Board",
+  title: "MAGI CHAIN Online",
+  description: "MAGI CHAIN online board game",
 };
 
 export default function RootLayout({
@@ -16,7 +16,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="ja">
       <body className={`${inter.className} ${cinzel.variable} antialiased`}>{children}</body>
     </html>
   );

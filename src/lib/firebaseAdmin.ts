@@ -34,3 +34,14 @@ export function getAdminDb() {
 
   return admin.firestore();
 }
+
+export function getAdminAuth() {
+  if (admin.apps.length === 0) {
+    const serviceAccount = resolveServiceAccount();
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount),
+    });
+  }
+
+  return admin.auth();
+}
