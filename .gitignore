@@ -39,3 +39,22 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# codex skills (local)
+/webapp-architect-directive/
+/webapp-impl-directive/
+/webapp-implementer/
+/webapp-orchestrator/
+/webapp-researcher/
+/webapp-uiux-designer/
+/webapp-reviewer/
+/webapp-reviewer-lite/
+
+# local automation outputs
+/runs/
+/webapp/
+/scripts/__pycache__/
+
+# firebase functions build artifacts
+/functions/node_modules/
+/functions/lib/
