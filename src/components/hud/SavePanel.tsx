@@ -52,10 +52,13 @@ export default function SavePanel({ layout = "overlay", onGameChange }: SavePane
       const ref = collection(db, "userGames", user.uid, "items");
       const q = query(ref, orderBy("updatedAt", "desc"));
       const snap = await getDocs(q);
-      const list = snap.docs.map((docSnap) => ({
-        gameId: docSnap.id,
-        ...(docSnap.data() as UserGameSummary),
-      }));
+      const list = snap.docs.map((docSnap) => {
+        const data = docSnap.data() as UserGameSummary;
+        return {
+          ...data,
+          gameId: data.gameId ?? docSnap.id,
+        };
+      });
       setGames(list);
     } catch (err: any) {
       setError(err?.message ?? "読み込みに失敗しました");
