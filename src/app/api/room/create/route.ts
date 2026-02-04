@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAdminDb } from "../../../../lib/firebaseAdmin";
-import { CHARACTER_SEEDS } from "../../../../data/characters";
+import { CHARACTER_SEEDS, CharacterSeed } from "../../../../data/characters";
 
 export async function POST(request: Request) {
   try {
@@ -39,9 +39,9 @@ export async function POST(request: Request) {
     const investigatorsSnap = await db.collection("investigators").get();
     const investigators = investigatorsSnap.docs.map((docSnap) => ({
       id: docSnap.id,
-      ...(docSnap.data() as Record<string, unknown>),
-    }));
-    const roster = investigators.length > 0 ? investigators : CHARACTER_SEEDS;
+      ...(docSnap.data() as Omit<CharacterSeed, "id">),
+    })) as CharacterSeed[];
+    const roster: CharacterSeed[] = investigators.length > 0 ? investigators : CHARACTER_SEEDS;
 
     const batch = db.batch();
     roster.forEach((seed) => {
