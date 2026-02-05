@@ -63,5 +63,9 @@ service cloud.firestore {
         allow delete: if isMember(gameId);
       }
     }
+
+    match /userGames/{userId}/items/{itemId} {
+      allow read, create, update, delete: if isSignedIn() && request.auth.uid == userId;
+    }
   }
 }
